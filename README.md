@@ -15,6 +15,8 @@ And agree with all questions during installation.
 
 All error logs onto the desktop in file named "Microchange_error_log.txt"
 
+DO NOT RENAME THE .EXE FILE. OTHERWISE IT WILL BE WORKING WRONG
+
 # Русский
 
 Инструмент для очень быстрой смены микрофона по умолчанию через системный трей
@@ -30,3 +32,5 @@ Install-Module -Name AudioDeviceCmdlets
 2. После этого вам необходимо скачать последний релиз и закинуть его в нужное вам место.
 
 Все ошибки регистрируются на рабочем столе в файле с именем "Microchange_error_log.txt"
+
+НИ В КОЕМ СЛУЧАЕ НЕ МЕНЯЙТЕ НАЗВАНИЕ .ЕХЕ ФАЙЛА. ИНАЧЕ ОН БУДЕТ НЕКОРРЕКТНО РАБОТАТЬ
