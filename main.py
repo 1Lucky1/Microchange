@@ -1,8 +1,9 @@
 import sys
 
 import os
+from traceback import format_exc
 import winreg
-from traceback import print_exc
+import logging
 
 import subprocess
 import locale
@@ -16,10 +17,19 @@ is_russian = locale.getlocale()[0].partition("Russian")[1] == "Russian"
 
 devices_json: dict = {}
 last_devices_json: dict = {}
-VERSION = "1.6"
+VERSION = "1.6.1"
 
 russian = {"close": "Закрыть программу", "version": f"Версия {VERSION}", "autostart": "Автозапуск с системой"}
 english = {"close": "Close application", "version": f"Version {VERSION}", "autostart": "Auto start"}
+
+# Настройка логгирования
+log_file_path = os.path.join(os.path.expanduser("~"), "Desktop", "Microchange_error_log.txt")
+
+logging.basicConfig(
+    filename=log_file_path,
+    level=logging.ERROR,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 
 def resource_path(relative_path):
@@ -37,7 +47,7 @@ def resource_path(relative_path):
 
 
 # Путь к исполняемому файлу
-APP_NAME = "Microchange.exe"
+APP_NAME: str = "Microchange.exe"
 app_path = os.path.join(os.path.dirname(os.path.abspath("Microchange.exe")), "Microchange.exe")
 
 
@@ -47,7 +57,7 @@ def add_to_startup():
                          winreg.KEY_SET_VALUE)
     winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, app_path)
     winreg.CloseKey(key)
-    print(f"{APP_NAME} добавлен в автозагрузку.")
+    # print(f"{APP_NAME} добавлен в автозагрузку.")
 
 
 def remove_from_startup():
@@ -56,9 +66,11 @@ def remove_from_startup():
                          winreg.KEY_SET_VALUE)
     try:
         winreg.DeleteValue(key, APP_NAME)
-        print(f"{APP_NAME} убран из автозагрузки.")
-    except FileNotFoundError:
-        print(f"{APP_NAME} не найден в автозагрузке.")
+        # print(f"{APP_NAME} убран из автозагрузки.")
+    except FileNotFoundError as e:
+        logging.error("Cannot remove from startup registry, because it doesn't exist.")
+        logging.error(e.with_traceback)
+        # print(f"{APP_NAME} не найден в автозагрузке.")
     finally:
         winreg.CloseKey(key)
 
@@ -118,7 +130,7 @@ def get_audio_devices_list():
             menu_items.append(MenuItem(
                 f"{index} - {name}",
                 lambda _, *, x=index: set_default_microphone(x),
-                checked=lambda _, *, x=index: devices_json.get(x, False),
+                checked=lambda _, *, x=index: devices_json[x] is True,
                 radio=True
             ))
 
@@ -203,6 +215,4 @@ if __name__ == "__main__":
         icon.run()
 
     except Exception:
-        with open(os.path.join(os.path.expanduser("~"), "Desktop", "Microchange_error_log.txt"), "w",
-                  encoding="utf-8") as file:
-            print_exc(file=file)
+        logging.error(f"Main block error: {format_exc()}")
