@@ -8,3 +8,5 @@ Install-Module -Name AudioDeviceCmdlets
 ```
 
 And agree with all questions during installation.
+
+All error logs onto the desktop in file named "Microchange_error_log.txt"
