@@ -1,7 +1,7 @@
 # Microchange
+Tool for very fast changing default microphone through system tray
 
 # English
-Tool for very fast changing default microphone through system tray
 
 1. For using this program you should run this command as administrator in Power shell 
 
