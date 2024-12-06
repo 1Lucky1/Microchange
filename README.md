@@ -1,4 +1,4 @@
-# Microchange
+![image](https://github.com/user-attachments/assets/1e59786f-e14c-4bae-90a3-cedfbef4bfa9)# Microchange
 
 # English
 Tool for very fast changing default microphone through system tray
@@ -34,3 +34,10 @@ Install-Module -Name AudioDeviceCmdlets
 Все ошибки регистрируются на рабочем столе в файле с именем "Microchange_error_log.txt"
 
 НИ В КОЕМ СЛУЧАЕ НЕ МЕНЯЙТЕ НАЗВАНИЕ .ЕХЕ ФАЙЛА. ИНАЧЕ ОН БУДЕТ НЕКОРРЕКТНО РАБОТАТЬ
+
+
+# Screenshots/Скриншоты
+
+![image](https://github.com/user-attachments/assets/2b253867-074e-4d9f-9b45-0e82a63eee28)
+
+
