@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/1e59786f-e14c-4bae-90a3-cedfbef4bfa9)# Microchange
+# Microchange
 
 # English
 Tool for very fast changing default microphone through system tray
