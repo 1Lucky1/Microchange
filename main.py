@@ -15,9 +15,12 @@ from pystray import Menu, MenuItem, Icon
 locale.setlocale(locale.LC_ALL, '')
 is_russian = locale.getlocale()[0].partition("Russian")[1] == "Russian"
 
-devices_json: dict = {}
-last_devices_json: dict = {}
-VERSION = "1.6.1"
+devices_json_recording = {}
+devices_json_playback = {}
+last_devices_json_recording = {}
+last_devices_json_playback = {}
+
+VERSION = "1.0"
 
 russian = {"close": "Закрыть программу", "version": f"Версия {VERSION}", "autostart": "Автозапуск с системой"}
 english = {"close": "Close application", "version": f"Version {VERSION}", "autostart": "Auto start"}
@@ -48,7 +51,7 @@ def resource_path(relative_path):
 
 # Путь к исполняемому файлу
 APP_NAME: str = "Microchange.exe"
-app_path = os.path.join(os.path.dirname(os.path.abspath("Microchange.exe")), "Microchange.exe")
+app_path = os.path.join(os.path.dirname(os.path.abspath("FullMicrochange.exe")), "FullMicrochange.exe")
 
 
 def add_to_startup():
@@ -97,22 +100,17 @@ def toggle_autostart():
         add_to_startup()
 
 
-def get_audio_devices_list():
+def get_recording_devices_list():
     """Формирует список кнопок с записывающими устройствами"""
-    global devices_json
-    global last_devices_json
+    global devices_json_recording
+    global last_devices_json_recording
 
-    # Получаем список аудиоустройств
     subprocess.run(['powershell', '-Command',
                     "Get-AudioDevice -List | Out-File -FilePath audio_devices.txt -Encoding utf8"],
                    creationflags=subprocess.CREATE_NO_WINDOW)
 
     with open('audio_devices.txt', 'r', encoding="utf-8") as f:
-
-        # Избавляемся от пустых строк, переносов
         audio_devices = [string for string in f.read().split('\n')[1:] if string]
-
-        # Группируем по 7 строк
         splitted_devices = [audio_devices[i:i + 7] for i in range(0, len(audio_devices), 7)]
 
         # Фильтруем только записывающие устройства
@@ -129,40 +127,89 @@ def get_audio_devices_list():
             new_devices_json[index] = is_default
             menu_items.append(MenuItem(
                 f"{index} - {name}",
-                lambda _, *, x=index: set_default_microphone(x),
-                checked=lambda _, *, x=index: devices_json[x] is True,
+                lambda _, *, x=index: set_default_device(x, 'recording'),
+                checked=lambda _, *, x=index: devices_json_recording.get(x, False),
                 radio=True
             ))
 
         # Проверка на различия между новыми и старыми данными
-        if new_devices_json == devices_json:
-            return False  # Возвращаем False, если наборы одинаковые
+        if new_devices_json == devices_json_recording:
+            return False
 
-        # Обновляем last_devices_json только если устройства не изменились
-        last_devices_json = devices_json.copy()
-        devices_json = new_devices_json
+        last_devices_json_recording = devices_json_recording.copy()
+        devices_json_recording = new_devices_json
 
         return menu_items
 
 
-def set_default_microphone(index: int):
-    """Устанавливает стандартное записывающее устройство"""
-    global devices_json
+def get_playback_devices_list():
+    """Формирует список кнопок с выводящими устройствами"""
+    global devices_json_playback
+    global last_devices_json_playback
+
+    subprocess.run(['powershell', '-Command',
+                    "Get-AudioDevice -List | Out-File -FilePath audio_devices.txt -Encoding utf8"],
+                   creationflags=subprocess.CREATE_NO_WINDOW)
+
+    with open('audio_devices.txt', 'r', encoding="utf-8") as f:
+        audio_devices = [string for string in f.read().split('\n')[1:] if string]
+        splitted_devices = [audio_devices[i:i + 7] for i in range(0, len(audio_devices), 7)]
+
+        # Фильтруем только выводящие устройства
+        only_playback_devices = [device for device in splitted_devices if
+                                 "Type                 : Recording" not in device]
+
+        menu_items = []
+        new_devices_json = {}
+
+        for device in only_playback_devices:
+            index = device[0].split()[-1]
+            is_default = device[1].split('Default              : ')[1].strip() == "True"
+            name = device[4].split("Name                 : ")[1].strip()
+            new_devices_json[index] = is_default
+            menu_items.append(MenuItem(
+                f"{index} - {name}",
+                lambda _, *, x=index: set_default_device(x, 'playback'),
+                checked=lambda _, *, x=index: devices_json_playback.get(x, False),
+                radio=True
+            ))
+
+        # Проверка на различия между новыми и старыми данными
+        if new_devices_json == devices_json_playback:
+            return False
+
+        last_devices_json_playback = devices_json_playback.copy()
+        devices_json_playback = new_devices_json
+
+        return menu_items
+
+
+def set_default_device(index: int, device_type: str):
+    """Устанавливает стандартное аудиоустройство"""
+    global devices_json_recording, devices_json_playback
+
     subprocess.run(['powershell', '-Command', f'Set-AudioDevice -Index {index}'],
                    creationflags=subprocess.CREATE_NO_WINDOW,
                    capture_output=True, text=True)
 
-    for key, value in devices_json.items():
-        devices_json[key] = False
+    if device_type == 'recording':
+        for key in devices_json_recording.keys():
+            devices_json_recording[key] = False
+        devices_json_recording[index] = True
 
-    devices_json[index] = True
+    elif device_type == 'playback':
+        for key in devices_json_playback.keys():
+            devices_json_playback[key] = False
+
+        devices_json_playback[index] = True
 
 
 def create_icon():
     """Создает экземпляр трей приложения"""
-    icon = Icon("Microchange")
+    icon = Icon("FullMicrochange")
     # image = Image.new('RGB', (32, 32), color='white')
-    image = Image.open(resource_path("new_icon.ico"))
+    image = Image.open(resource_path("FullMicrochange.ico"))
+    image = Image.open(resource_path("FullMicrochange.ico"))
     icon.icon = image
 
     return icon
@@ -170,14 +217,18 @@ def create_icon():
 
 def create_menu():
     """Создает меню для иконки в трее"""
-    input_devices = get_audio_devices_list()
-    if not input_devices:
+    output_devices = get_playback_devices_list()
+    input_devices = get_recording_devices_list()
+
+    if not input_devices and not output_devices:
         return False
     if is_russian:
         close, vers, autostart = russian["close"], russian["version"], russian["autostart"]
     else:
         close, vers, autostart = english["close"], english["version"], english["autostart"]
-    menu = Menu(*input_devices,
+    menu = Menu(*output_devices,
+                Menu.SEPARATOR,
+                *input_devices,
                 Menu.SEPARATOR,
                 MenuItem(autostart, toggle_autostart, is_in_startup),
                 Menu.SEPARATOR,
@@ -189,7 +240,7 @@ def create_menu():
 
 def stop():
     """Завершает процесс программы"""
-    subprocess.run(["taskkill", "/F", "/IM", "Microchange.exe"], check=True,
+    subprocess.run(["taskkill", "/F", "/IM", "FullMicrochange.exe"], check=True,
                    creationflags=subprocess.CREATE_NO_WINDOW, )
 
 

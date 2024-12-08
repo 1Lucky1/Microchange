@@ -1,5 +1,7 @@
 /.idea
 /output
+/icons/*.png
+*.png
 audio_devices.txt
 AudioDeviceCmdlets.dll
 experiments.py
