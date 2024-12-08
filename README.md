@@ -17,6 +17,8 @@ All error logs onto the **desktop** in file named "Microchange_error_log.txt"
 
 DO NOT RENAME THE .EXE FILE. OTHERWISE IT WILL BE WORKING WRONG
 
+I think, a little later I'll post a guide to building the program yourself.
+
 # Русский
 
 Инструмент для очень быстрой **смены микрофона по умолчанию** через системный трей
@@ -35,6 +37,7 @@ Install-Module -Name AudioDeviceCmdlets
 
 НИ В КОЕМ СЛУЧАЕ НЕ МЕНЯЙТЕ НАЗВАНИЕ .ЕХЕ ФАЙЛА. ИНАЧЕ ОН БУДЕТ НЕКОРРЕКТНО РАБОТАТЬ
 
+Я думаю, немного позже я всё таки выкачу гайд по собственноручной сборке программы.
 
 # Screenshots/Скриншоты
 
