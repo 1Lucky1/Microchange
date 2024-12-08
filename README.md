@@ -1,7 +1,7 @@
-# Microchange
+# FullMicrochange
 
 # English
-Tool for very fast changing default microphone through system tray
+Tool for very fast changing default microphone and speakers through system tray
 
 1. For using this program you should run this command as administrator in Power shell 
 
@@ -19,7 +19,7 @@ DO NOT RENAME THE .EXE FILE. OTHERWISE IT WILL BE WORKING WRONG
 
 # Русский
 
-Инструмент для очень быстрой смены микрофона по умолчанию через системный трей
+Инструмент для очень быстрой смены микрофона и динамиков по умолчанию через системный трей
 
 1. Для использования этой программы вы должны запустить эту команду от имени администратора в Power shell 
 
