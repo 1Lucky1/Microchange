@@ -34,3 +34,5 @@ Install-Module -Name AudioDeviceCmdlets
 Все ошибки регистрируются на **рабочем столе** в файле с именем "Microchange_error_log.txt"
 
 НИ В КОЕМ СЛУЧАЕ НЕ МЕНЯЙТЕ НАЗВАНИЕ .ЕХЕ ФАЙЛА. ИНАЧЕ ОН БУДЕТ НЕКОРРЕКТНО РАБОТАТЬ
+
+![image](https://github.com/user-attachments/assets/ad4f3a78-d08b-4dd2-9bcf-150fc89230b1)
