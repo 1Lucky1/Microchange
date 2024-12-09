@@ -2,6 +2,8 @@
 /output
 /icons/*.png
 *.png
+*.psd
+*.txt
 audio_devices.txt
 AudioDeviceCmdlets.dll
 experiments.py
