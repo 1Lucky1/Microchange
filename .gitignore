@@ -1,6 +1,6 @@
 /.idea
 /output
-/icons/*.png
+/icons
 *.png
 *.psd
 *.txt
