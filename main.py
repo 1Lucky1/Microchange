@@ -20,7 +20,7 @@ devices_json_playback = {}
 last_devices_json_recording = {}
 last_devices_json_playback = {}
 
-VERSION = "1.0"
+VERSION = "1.0.1"
 
 russian = {"close": "Закрыть программу", "version": f"Версия {VERSION}", "autostart": "Автозапуск с системой"}
 english = {"close": "Close application", "version": f"Version {VERSION}", "autostart": "Auto start"}
@@ -50,7 +50,7 @@ def resource_path(relative_path):
 
 
 # Путь к исполняемому файлу
-APP_NAME: str = "Microchange.exe"
+APP_NAME: str = "FullMicrochange.exe"
 app_path = os.path.join(os.path.dirname(os.path.abspath("FullMicrochange.exe")), "FullMicrochange.exe")
 
 
