@@ -19,7 +19,7 @@ is_russian = locale.getlocale()[0].partition("Russian")[1] == "Russian"
 
 devices_json: dict = {}
 last_devices_json: dict = {}
-VERSION = "1.6.1"
+VERSION = "1.7"
 
 russian = {"close": "Закрыть программу", "version": f"Версия {VERSION}", "autostart": "Автозапуск с системой"}
 english = {"close": "Close application", "version": f"Version {VERSION}", "autostart": "Auto start"}
