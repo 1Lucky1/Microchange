@@ -11,6 +11,8 @@ from threading import Timer
 from PIL import Image
 from pystray import Menu, MenuItem, Icon
 
+import win32com.client
+
 # Получаем текущую локаль
 locale.setlocale(locale.LC_ALL, '')
 is_russian = locale.getlocale()[0].partition("Russian")[1] == "Russian"
@@ -47,54 +49,48 @@ def resource_path(relative_path):
 
 
 # Путь к исполняемому файлу
-APP_NAME: str = "Microchange.exe"
-app_path = os.path.join(os.path.dirname(os.path.abspath("Microchange.exe")), "Microchange.exe")
+path = sys.argv[0]
+APP_NAME = os.path.basename(path)
+APP_PATH = os.path.abspath(path)
+STARTUP_PATH = os.path.expandvars(r"%Appdata%\Microsoft\Windows\Start Menu\Programs\Startup")
 
 
-def add_to_startup():
-    """Добавляет Microchange.exe в автозагрузку."""
-    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0,
-                         winreg.KEY_SET_VALUE)
-    winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, app_path)
-    winreg.CloseKey(key)
-    # print(f"{APP_NAME} добавлен в автозагрузку.")
+def setup_startup():
+    """Создает ярлык на FullMicrochange.exe в папке автозагрузки."""
+    shell = win32com.client.Dispatch("WScript.Shell")
+    shortcut_path = os.path.join(STARTUP_PATH, f"{APP_NAME}.lnk")
+
+    # Удаляем старый ярлык, если он существует
+    if os.path.exists(shortcut_path):
+        os.remove(shortcut_path)
+
+    shortcut = shell.CreateShortCut(shortcut_path)
+    shortcut.TargetPath = APP_PATH
+    shortcut.WorkingDirectory = os.path.dirname(APP_PATH)
+    shortcut.IconLocation = APP_PATH
+    shortcut.save()
 
 
-def remove_from_startup():
-    """Убирает Microchange.exe из автозагрузки."""
-    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0,
-                         winreg.KEY_SET_VALUE)
-    try:
-        winreg.DeleteValue(key, APP_NAME)
-        # print(f"{APP_NAME} убран из автозагрузки.")
-    except FileNotFoundError as e:
-        logging.error("Cannot remove from startup registry, because it doesn't exist.")
-        logging.error(e.with_traceback)
-        # print(f"{APP_NAME} не найден в автозагрузке.")
-    finally:
-        winreg.CloseKey(key)
+def shortcut_exists(icon_copy=None):  # Параметр - это экземпляр icon, который сюда pystray передает зачем-то
+    """Проверяет наличие ярлыка в папке автозагрузки."""
+    shortcut_path = os.path.join(STARTUP_PATH, f"{APP_NAME}.lnk")
+    return os.path.exists(shortcut_path)
 
 
-def is_in_startup(
-        MenuItemParam=None):  # Параметр здесь нужен, чтобы избежать исключения, когда MenuItem за каким-то хером передаёт себя в эту функцию!
-
-    """Проверяет, добавлен ли Microchange.exe в автозагрузку."""
-    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run")
-    try:
-        winreg.QueryValueEx(key, APP_NAME)[0]
-        return True
-    except FileNotFoundError:
-        return False
-    finally:
-        winreg.CloseKey(key)
-
-
-def toggle_autostart():
-    """Переключает состояние Microchange.exe в автозагрузке."""
-    if is_in_startup():
-        remove_from_startup()
+def remove_startup():
+    """Удаляет ярлык из автозагрузки."""
+    shortcut_path = os.path.join(STARTUP_PATH, f"{APP_NAME}.lnk")
+    if os.path.exists(shortcut_path):
+        os.remove(shortcut_path)
     else:
-        add_to_startup()
+        logging.error("Ярлык не найден в автозагрузке.")
+
+
+def toggle_startup():
+    if shortcut_exists():
+        remove_startup()
+    else:
+        setup_startup()
 
 
 def get_audio_devices_list():
@@ -179,7 +175,7 @@ def create_menu():
         close, vers, autostart = english["close"], english["version"], english["autostart"]
     menu = Menu(*input_devices,
                 Menu.SEPARATOR,
-                MenuItem(autostart, toggle_autostart, is_in_startup),
+                MenuItem(autostart, toggle_startup, shortcut_exists),
                 Menu.SEPARATOR,
                 MenuItem(close, stop),
                 Menu.SEPARATOR,
@@ -189,7 +185,7 @@ def create_menu():
 
 def stop():
     """Завершает процесс программы"""
-    subprocess.run(["taskkill", "/F", "/IM", "Microchange.exe"], check=True,
+    subprocess.run(["taskkill", "/F", "/IM", APP_NAME], check=True,
                    creationflags=subprocess.CREATE_NO_WINDOW, )
 
 
