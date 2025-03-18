@@ -1,4 +1,4 @@
-# FullMicrochangeC
+# FullMicrochangeCS
 
 Tool for very fast **changing default microphone and speakers** through system tray
 
