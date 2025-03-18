@@ -2,7 +2,6 @@
 using AudioSwitcher.AudioApi.CoreAudio;
 using Microsoft.Win32;
 using System;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -14,14 +13,14 @@ namespace Microchange
     {
         private static NotifyIcon _notifyIcon;
         private static CoreAudioController _audioController;
-        private static readonly string AppName = "FullMicrochange";
-        private static readonly string Version = "2.0c";
-        private static readonly string LogFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "Microchange_error_log.txt");
+        private static readonly string AppName = "FullMicrochangeCS";
+        private static readonly string Version = "2.0.2c";
+        private static readonly string LogFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "FullMicrochangeCS_error_log.txt");
         private static readonly string StartupKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private static bool _isRussian;
 
         [STAThread]
-        static void Main(string[] args)
+        static void Main()
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -37,7 +36,7 @@ namespace Microchange
                 // Создание иконки в трее
                 _notifyIcon = new NotifyIcon
                 {
-                    Icon = FullMicrochange.Properties.Resources.FullMicrochange, //new Icon("FullMicrochange.ico"),
+                    Icon = FullMicrochangeCS.Properties.Resources.FullMicrochange,
                     Visible = true,
                     Text = AppName
                 };
@@ -45,9 +44,6 @@ namespace Microchange
 
                 // Обновляем меню при старте
                 UpdateTrayMenu();
-
-                // Проверяем и настраиваем автозапуск при первом запуске программы (Пока что без надобности)
-                // CheckAndSetupStartup();
 
                 // Запускаем цикл сообщений без формы
                 Application.Run(new TrayApplicationContext());
@@ -66,13 +62,22 @@ namespace Microchange
             {
                 var contextMenu = new ContextMenuStrip();
 
-                // Устройства воспроизведения (Playback) — только активные
+                // Проверка наличия устройств
                 var playbackDevices = _audioController.GetPlaybackDevices()
-                    .Where(d => d.State == DeviceState.Active) // Фильтруем только активные устройства
+                    .Where(d => d.State == DeviceState.Active)
                     .ToList();
-                //.Where(d => !d.Name.Contains("NVIDIA") && !d.Name.Contains("Rift")) // Исключаем "мусор" (можно настроить под свои нужды)
+                var recordingDevices = _audioController.GetCaptureDevices()
+                    .Where(d => d.State == DeviceState.Active)
+                    .ToList();
 
+                if (!playbackDevices.Any() && !recordingDevices.Any())
+                {
+                    contextMenu.Items.Add(new ToolStripMenuItem(_isRussian ? "Нет активных устройств" : "No active devices"));
+                    _notifyIcon.ContextMenuStrip = contextMenu;
+                    return;
+                }
 
+                // Устройства воспроизведения (Playback)
                 var playbackItems = playbackDevices.Select(device => new ToolStripMenuItem
                 {
                     Text = device.Name,
@@ -87,20 +92,12 @@ namespace Microchange
                     {
                         var selectedDevice = (CoreAudioDevice)item.Tag;
                         selectedDevice.SetAsDefault();
-                        UpdateTrayMenu(); // Обновляем меню после изменения
+                        UpdateTrayMenu();
                     };
                 }
                 contextMenu.Items.Add(new ToolStripMenuItem(_isRussian ? "Устройства воспроизведения" : "Playback Devices", null, playbackItems));
 
-                // Разделитель
-                contextMenu.Items.Add(new ToolStripSeparator());
-
-                // Устройства записи (Recording) — только активные
-                var recordingDevices = _audioController.GetCaptureDevices()
-                    .Where(d => d.State == DeviceState.Active) // Фильтруем только активные устройства
-                    //.Where(d => !d.Name.Contains("NVIDIA") && !d.Name.Contains("Rift")) // Исключаем "мусор" (можно настроить под свои нужды)
-                    .ToList();
-
+                // Устройства записи (Recording)
                 var recordingItems = recordingDevices.Select(device => new ToolStripMenuItem
                 {
                     Text = device.Name,
@@ -115,7 +112,7 @@ namespace Microchange
                     {
                         var selectedDevice = (CoreAudioDevice)item.Tag;
                         selectedDevice.SetAsDefault();
-                        UpdateTrayMenu(); // Обновляем меню после изменения
+                        UpdateTrayMenu();
                     };
                 }
                 contextMenu.Items.Add(new ToolStripMenuItem(_isRussian ? "Устройства записи" : "Recording Devices", null, recordingItems));
@@ -143,13 +140,13 @@ namespace Microchange
                     Application.Exit();
                 }));
 
-                // Разделитель
-                contextMenu.Items.Add(new ToolStripSeparator());
-
-                // Версия
-                contextMenu.Items.Add(new ToolStripMenuItem(_isRussian ? $"Версия {Version}" : $"Version {Version}", null, (s, e) => { }));
+                // О программе
+                var aboutItem = new ToolStripMenuItem(_isRussian ? "О программе" : "About");
+                aboutItem.Click += (s, e) => ShowAboutDialog();
+                contextMenu.Items.Add(aboutItem);
 
                 _notifyIcon.ContextMenuStrip = contextMenu;
+
             }
             catch (Exception ex)
             {
@@ -157,14 +154,28 @@ namespace Microchange
             }
         }
 
+        private static void ShowAboutDialog()
+        {
+            try
+            {
+                string title = _isRussian ? "О программе" : "About";
+                string message = _isRussian
+                    ? $"FullMicrochangeCS\n\nТрей-ориентированная программа для изменения стандартных динамиков и микрофона в системе.\n\nАвтор: Dark Hacker (MooDuck Games)\n\nВерсия: {Version}\n\nКонтакты:\n@PythonistHarry (Telegram)\ndarkhacker (Discord)"
+                    : $"FullMicrochangeCS\n\nTray-oriented program for changing default speakers and microphone in the system.\n\nAuthor: Dark Hacker (MooDuck Games)\n\nVersion: {Version}\n\nContacts:\n@PythonistHarry (Telegram)\ndarkhacker (Discord)";
+
+                MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error showing about dialog: {ex}");
+            }
+        }
+
         private static void CheckAndSetupStartup()
         {
             try
             {
-                if (IsStartupEnabled())
-                {
-                    return;
-                }
+                if (IsStartupEnabled()) return;
 
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(StartupKeyPath, true))
                 {
@@ -183,18 +194,9 @@ namespace Microchange
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(StartupKeyPath, false))
                 {
-                    if (key == null)
-                    {
-                        return false;
-                    }
-
+                    if (key == null) return false;
                     string currentValue = key.GetValue(AppName) as string;
-                    if (string.IsNullOrEmpty(currentValue))
-                    {
-                        return false;
-                    }
-
-                    // Сравниваем текущий путь с путем к текущему запущенному файлу
+                    if (string.IsNullOrEmpty(currentValue)) return false;
                     string currentExecutablePath = Assembly.GetExecutingAssembly().Location;
                     return currentValue.Equals($"\"{currentExecutablePath}\"", StringComparison.OrdinalIgnoreCase);
                 }
@@ -213,13 +215,9 @@ namespace Microchange
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(StartupKeyPath, true))
                 {
                     if (IsStartupEnabled())
-                    {
                         key?.DeleteValue(AppName);
-                    }
                     else
-                    {
                         key?.SetValue(AppName, $"\"{Assembly.GetExecutingAssembly().Location}\"", RegistryValueKind.String);
-                    }
                 }
                 UpdateTrayMenu();
             }
@@ -233,11 +231,20 @@ namespace Microchange
         {
             try
             {
+                // Логируем ошибку в файл
                 File.AppendAllText(LogFilePath, $"{DateTime.Now} - ERROR - {message}{Environment.NewLine}");
+
+                // Показываем уведомление
+                _notifyIcon.BalloonTipIcon = ToolTipIcon.Error;
+                _notifyIcon.BalloonTipTitle = AppName;
+                _notifyIcon.BalloonTipText = _isRussian
+                    ? $"Произошла ошибка, подробности смотрите в {Path.GetFileName(LogFilePath)} на рабочем столе."
+                    : $"An error occurred, see details in {Path.GetFileName(LogFilePath)} on your desktop.";
+                _notifyIcon.ShowBalloonTip(10000); // Показываем уведомление на 10 секунд
             }
             catch
             {
-                // Игнорируем ошибки логирования
+                // Игнорируем ошибки логирования и уведомления
             }
         }
 

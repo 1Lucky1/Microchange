@@ -6,8 +6,8 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{94458D94-8C5D-41FF-9590-3EB498D36586}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>FullMicrochange</RootNamespace>
-    <AssemblyName>FullMicrochange</AssemblyName>
+    <RootNamespace>FullMicrochangeCS</RootNamespace>
+    <AssemblyName>FullMicrochangeCS</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
