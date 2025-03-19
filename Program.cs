@@ -16,9 +16,10 @@ namespace Microchange
         private static NotifyIcon _notifyIcon;
         private static CoreAudioController _audioController;
         private static readonly string AppName = "FullMicrochangeCS";
-        private static readonly string Version = "2.2.0c";
+        private static readonly string Version = "2.2.1c";
         private static readonly string LogFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "FullMicrochangeCS_error_log.txt");
         private static readonly string StartupKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private static readonly object _audioLock = new object();
         private static bool _isRussian;
         private static IDisposable _deviceChangeSubscription;
         private static ToolStripMenuItem _playbackMenuItem;
@@ -99,7 +100,7 @@ namespace Microchange
         private static void ShowTrayMenu()
         {
             UpdateDeviceLists();
-            _notifyIcon.ContextMenuStrip.Show(Cursor.Position);
+            //_notifyIcon.ContextMenuStrip.Show(Cursor.Position);
         }
 
         private static void SubscribeToDeviceChanges()
@@ -122,22 +123,20 @@ namespace Microchange
                 Guid? deviceId = args.Device?.Id;
                 bool isActive = args.Device != null && args.Device.State == DeviceState.Active;
 
-                // Убиваем старый экземпляр и создаём новый
-                _deviceChangeSubscription?.Dispose();
-                _audioController?.Dispose();
-                _audioController = new CoreAudioController();
-                SubscribeToDeviceChanges(); // Подписываемся заново
-
-                UpdateDeviceLists();
+                // Убиваем старый экземпляр и создаём новый под блокировкой, чтобы не дать другим потокам наследить с ним
+                lock (_audioLock)
+                {
+                    _deviceChangeSubscription?.Dispose();
+                    _audioController?.Dispose();
+                    _audioController = new CoreAudioController();
+                    SubscribeToDeviceChanges();
+                }
 
                 // Если устройство активно, ищем его в новом списке по Id и показываем уведомление
                 if (isActive && deviceId.HasValue)
                 {
                     // Ищем устройство в новом списке
-                    var allDevices = _audioController.GetPlaybackDevices(DeviceState.Active)
-                        .Cast<IDevice>()
-                        .Concat(_audioController.GetCaptureDevices(DeviceState.Active).Cast <IDevice>())
-                        .ToList();
+                    var allDevices = _audioController.GetDevices(DeviceState.Active);
 
                     var newDevice = allDevices.FirstOrDefault(d => d.Id == deviceId.Value);
                     if (newDevice != null)
@@ -152,7 +151,13 @@ namespace Microchange
                     }
                     else
                     {
-                        LogError($"Device with ID {deviceId} not found in new list.");
+                        LogError($"Device with ID {deviceId} not found in new list.", true);
+                    }
+
+                    // Используем с блокировкой, чтобы не вызвать работу с аудио контроллером, пока он в состоянии Disposed
+                    lock (_audioLock)
+                    {
+                        UpdateDeviceLists();
                     }
                 }
             }
@@ -165,18 +170,29 @@ namespace Microchange
         private static void UpdateDeviceLists()
         {
             try
-            {
-                var playbackDevices = _audioController.GetPlaybackDevices(DeviceState.Active).Cast<IDevice>().ToList();
-                var recordingDevices = _audioController.GetCaptureDevices(DeviceState.Active).Cast<IDevice>().ToList();
-
-                UpdatePlaybackMenuItems(playbackDevices);
-                UpdateRecordingMenuItems(recordingDevices);
-
-                if (!playbackDevices.Any() && !recordingDevices.Any())
+            {   
+                // Используем под блокировкой, чтобы никаких гонок не случалось, пока аудио контроллер может быть Disposed
+                lock (_audioLock)
                 {
-                    _playbackMenuItem.DropDownItems.Clear();
-                    _playbackMenuItem.DropDownItems.Add(new ToolStripMenuItem(_isRussian ? "Нет активных устройств" : "No active devices"));
-                    _recordingMenuItem.DropDownItems.Clear();
+
+                    if (_audioController == null)
+                    {
+                        LogError("Audio controller is null.", true);
+                        return;
+                    }
+
+                    var playbackDevices = _audioController.GetPlaybackDevices(DeviceState.Active).Cast<IDevice>().ToList();
+                    var recordingDevices = _audioController.GetCaptureDevices(DeviceState.Active).Cast<IDevice>().ToList();
+
+                    UpdatePlaybackMenuItems(playbackDevices);
+                    UpdateRecordingMenuItems(recordingDevices);
+
+                    if (!playbackDevices.Any() && !recordingDevices.Any())
+                    {
+                        _playbackMenuItem.DropDownItems.Clear();
+                        _playbackMenuItem.DropDownItems.Add(new ToolStripMenuItem(_isRussian ? "Нет активных устройств" : "No active devices"));
+                        _recordingMenuItem.DropDownItems.Clear();
+                    }
                 }
             }
             catch (Exception ex)
@@ -320,11 +336,14 @@ namespace Microchange
             }
         }
 
-        private static void LogError(string message)
+        private static void LogError(string message, bool is_silent=false)
         {
             try
             {
                 File.AppendAllText(LogFilePath, $"{DateTime.Now} - ERROR - {message}{Environment.NewLine}");
+
+                if (is_silent) return;
+
                 _notifyIcon.BalloonTipIcon = ToolTipIcon.Error;
                 _notifyIcon.BalloonTipTitle = AppName;
                 _notifyIcon.BalloonTipText = _isRussian
