@@ -189,6 +189,7 @@ namespace Microchange
                 else if (isActive && deviceId.HasValue)
                 {
                     // Если состав не изменился, просто обновляем состояние меню
+                    // Используем с блокировкой, чтобы не вызвать работу с аудио контроллером, пока он в состоянии Disposed
                     lock (_audioLock)
                     {
                         UpdateDeviceLists(); // Обновляем только чекбоксы, без пересоздания
