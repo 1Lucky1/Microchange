@@ -16,7 +16,7 @@ namespace Microchange
         private static NotifyIcon _notifyIcon;
         private static CoreAudioController _audioController;
         private static readonly string AppName = "FullMicrochangeCS";
-        private static readonly string Version = "2.2.1c";
+        private static readonly string Version = "2.2.2c";
         private static readonly string LogFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "FullMicrochangeCS_error_log.txt");
         private static readonly string StartupKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private static readonly object _audioLock = new object();
@@ -25,6 +25,8 @@ namespace Microchange
         private static ToolStripMenuItem _playbackMenuItem;
         private static ToolStripMenuItem _recordingMenuItem;
         private static ContextMenuStrip _contextMenu;
+        private static HashSet<Guid> _currentPlaybackDeviceIds = new HashSet<Guid>();
+        private static HashSet<Guid> _currentRecordingDeviceIds = new HashSet<Guid>();
 
         [STAThread]
         static void Main()
@@ -49,6 +51,9 @@ namespace Microchange
                 InitializeTrayMenu();
                 SubscribeToDeviceChanges();
 
+                // Инициализируем текущие списки устройств
+                UpdateDeviceIds();
+
                 Application.Run(new TrayApplicationContext());
             }
             catch (Exception ex)
@@ -56,6 +61,15 @@ namespace Microchange
                 LogError($"Initialization error: {ex}");
                 _notifyIcon?.Dispose();
                 Environment.Exit(1);
+            }
+        }
+
+        private static void UpdateDeviceIds()
+        {
+            lock (_audioLock)
+            {
+                _currentPlaybackDeviceIds = new HashSet<Guid>(_audioController.GetPlaybackDevices(DeviceState.Active).Select(d => d.Id));
+                _currentRecordingDeviceIds = new HashSet<Guid>(_audioController.GetCaptureDevices(DeviceState.Active).Select(d => d.Id));
             }
         }
 
@@ -119,45 +133,65 @@ namespace Microchange
         {
             try
             {
-                // Сохраняем Id устройства, чтобы найти его позже
+                // Проверяем, активно ли устройство
                 Guid? deviceId = args.Device?.Id;
                 bool isActive = args.Device != null && args.Device.State == DeviceState.Active;
 
-                // Убиваем старый экземпляр и создаём новый под блокировкой, чтобы не дать другим потокам наследить с ним
+                // Получаем текущий состав устройств
+                HashSet<Guid> newPlaybackDeviceIds;
+                HashSet<Guid> newRecordingDeviceIds;
                 lock (_audioLock)
                 {
-                    _deviceChangeSubscription?.Dispose();
-                    _audioController?.Dispose();
-                    _audioController = new CoreAudioController();
-                    SubscribeToDeviceChanges();
+                    newPlaybackDeviceIds = new HashSet<Guid>(_audioController.GetPlaybackDevices(DeviceState.Active).Select(d => d.Id));
+                    newRecordingDeviceIds = new HashSet<Guid>(_audioController.GetCaptureDevices(DeviceState.Active).Select(d => d.Id));
                 }
 
-                // Если устройство активно, ищем его в новом списке по Id и показываем уведомление
-                if (isActive && deviceId.HasValue)
+                // Сравниваем с предыдущим состоянием
+                bool devicesChanged = !newPlaybackDeviceIds.SetEquals(_currentPlaybackDeviceIds) ||
+                                     !newRecordingDeviceIds.SetEquals(_currentRecordingDeviceIds);
+
+                if (devicesChanged)
                 {
-                    // Ищем устройство в новом списке
-                    var allDevices = _audioController.GetDevices(DeviceState.Active);
-
-                    var newDevice = allDevices.FirstOrDefault(d => d.Id == deviceId.Value);
-                    if (newDevice != null)
-                    {
-                        string deviceName = GetDeviceName(newDevice);
-                        _notifyIcon.BalloonTipIcon = ToolTipIcon.Info;
-                        _notifyIcon.BalloonTipTitle = AppName;
-                        _notifyIcon.BalloonTipText = _isRussian
-                            ? $"Обнаружено новое устройство: {deviceName}!"
-                            : $"New device detected: {deviceName}!";
-                        _notifyIcon.ShowBalloonTip(5000);
-                    }
-                    else
-                    {
-                        LogError($"Device with ID {deviceId} not found in new list.", true);
-                    }
-
-                    // Используем с блокировкой, чтобы не вызвать работу с аудио контроллером, пока он в состоянии Disposed
+                    // Если состав устройств изменился, пересоздаём контроллер и обновляем всё
                     lock (_audioLock)
                     {
+                        _deviceChangeSubscription?.Dispose();
+                        _audioController?.Dispose();
+                        _audioController = new CoreAudioController();
+                        _deviceChangeSubscription = _audioController.AudioDeviceChanged.Subscribe(OnDeviceChanged);
+
+                        // Обновляем текущие списки ID
+                        _currentPlaybackDeviceIds = newPlaybackDeviceIds;
+                        _currentRecordingDeviceIds = newRecordingDeviceIds;
+
                         UpdateDeviceLists();
+                    }
+
+                    if (isActive && deviceId.HasValue && newPlaybackDeviceIds.Contains(deviceId.Value) || newRecordingDeviceIds.Contains(deviceId.Value))
+                    {
+                        lock (_audioLock)
+                        {
+                            var allDevices = _audioController.GetDevices(DeviceState.Active);
+                            var newDevice = allDevices.FirstOrDefault(d => d.Id == deviceId.Value);
+                            if (newDevice != null)
+                            {
+                                string deviceName = GetDeviceName(newDevice);
+                                _notifyIcon.BalloonTipIcon = ToolTipIcon.Info;
+                                _notifyIcon.BalloonTipTitle = AppName;
+                                _notifyIcon.BalloonTipText = _isRussian
+                                    ? $"Обнаружено новое устройство: {deviceName}!"
+                                    : $"New device detected: {deviceName}!";
+                                _notifyIcon.ShowBalloonTip(5000);
+                            }
+                        }
+                    }
+                }
+                else if (isActive && deviceId.HasValue)
+                {
+                    // Если состав не изменился, просто обновляем состояние меню
+                    lock (_audioLock)
+                    {
+                        UpdateDeviceLists(); // Обновляем только чекбоксы, без пересоздания
                     }
                 }
             }
@@ -170,20 +204,14 @@ namespace Microchange
         private static void UpdateDeviceLists()
         {
             try
-            {   
-                // Используем под блокировкой, чтобы никаких гонок не случалось, пока аудио контроллер может быть Disposed
+            {
                 lock (_audioLock)
                 {
-
-                    if (_audioController == null)
-                    {
-                        LogError("Audio controller is null.", true);
-                        return;
-                    }
-
+                    // Получаем новые списки устройств
                     var playbackDevices = _audioController.GetPlaybackDevices(DeviceState.Active).Cast<IDevice>().ToList();
                     var recordingDevices = _audioController.GetCaptureDevices(DeviceState.Active).Cast<IDevice>().ToList();
 
+                    // Обновляем меню с новыми устройствами
                     UpdatePlaybackMenuItems(playbackDevices);
                     UpdateRecordingMenuItems(recordingDevices);
 
@@ -204,7 +232,7 @@ namespace Microchange
         private static void UpdatePlaybackMenuItems(List<IDevice> devices)
         {
             _playbackMenuItem.DropDownItems.Clear();
-            var playbackItems = devices.Select(device =>
+            foreach (var device in devices)
             {
                 string deviceName = GetDeviceName(device);
                 var item = new ToolStripMenuItem
@@ -216,20 +244,21 @@ namespace Microchange
                 };
                 item.Click += (s, e) =>
                 {
-                    var selectedDevice = (IDevice)item.Tag;
-                    LogError($"Setting default device: {selectedDevice.FullName}");
-                    selectedDevice.SetAsDefault();
-                    UpdateDeviceLists();
+                    lock (_audioLock)
+                    {
+                        var selectedDevice = (IDevice)item.Tag;
+                        selectedDevice.SetAsDefault();
+                        UpdateDeviceLists();
+                    }
                 };
-                return item;
-            }).ToArray();
-            _playbackMenuItem.DropDownItems.AddRange(playbackItems);
+                _playbackMenuItem.DropDownItems.Add(item);
+            }
         }
 
         private static void UpdateRecordingMenuItems(List<IDevice> devices)
         {
             _recordingMenuItem.DropDownItems.Clear();
-            var recordingItems = devices.Select(device =>
+            foreach (var device in devices)
             {
                 string deviceName = GetDeviceName(device);
                 var item = new ToolStripMenuItem
@@ -241,14 +270,15 @@ namespace Microchange
                 };
                 item.Click += (s, e) =>
                 {
-                    var selectedDevice = (IDevice)item.Tag;
-                    LogError($"Setting default device: {selectedDevice.FullName}");
-                    selectedDevice.SetAsDefault();
-                    UpdateDeviceLists();
+                    lock (_audioLock)
+                    {
+                        var selectedDevice = (IDevice)item.Tag;
+                        selectedDevice.SetAsDefault();
+                        UpdateDeviceLists();
+                    }
                 };
-                return item;
-            }).ToArray();
-            _recordingMenuItem.DropDownItems.AddRange(recordingItems);
+                _recordingMenuItem.DropDownItems.Add(item);
+            }
         }
 
         private static string GetDeviceName(IDevice device)
